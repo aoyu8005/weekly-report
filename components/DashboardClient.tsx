@@ -19,9 +19,7 @@ export function DashboardClient({ repos, userLogin }: Props) {
 
   function toggleRepo(fullName: string) {
     setSelectedRepos((prev) =>
-      prev.includes(fullName)
-        ? prev.filter((r) => r !== fullName)
-        : [...prev, fullName]
+      prev.includes(fullName) ? prev.filter((r) => r !== fullName) : [...prev, fullName]
     );
   }
 
@@ -60,86 +58,128 @@ export function DashboardClient({ repos, userLogin }: Props) {
     }
   }
 
-  const aiOptions: { value: AIProvider; label: string; desc: string }[] = [
-    { value: "claude", label: "Claude", desc: "Anthropic Claude（推荐）" },
+  const aiOptions: { value: AIProvider; label: string; desc: string; tag?: string }[] = [
+    { value: "claude", label: "Claude", desc: "Anthropic", tag: "推荐" },
     { value: "openai", label: "OpenAI", desc: "GPT-4o Mini" },
-    { value: null, label: "无 AI", desc: "仅导出提交记录，自行总结" },
+    { value: null, label: "无 AI", desc: "仅导出原始记录" },
   ];
 
+  const canGenerate = !loading && selectedRepos.length > 0;
+
   return (
-    <div className="space-y-8">
-      {/* 仓库选择 */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+    <div>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .repo-row:hover { background: rgba(255,255,255,0.02) !important; }
+        .repo-row-active:hover { background: rgba(245,158,11,0.07) !important; }
+        .ai-btn:hover { border-color: #27272a !important; }
+        .ai-btn-active:hover { border-color: #f59e0b !important; }
+        .gen-btn:not(:disabled):hover { background: #fbbf24 !important; }
+        .sign-out-btn:hover { color: #f59e0b !important; }
+      `}</style>
+
+      {/* ── 选择仓库 ── */}
+      <section style={{ marginBottom: "36px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+          <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", letterSpacing: "0.18em", textTransform: "uppercase", color: "#a1a1aa" }}>
             选择仓库
-          </h2>
-          <span className="text-sm text-zinc-500">
-            已选 {selectedRepos.length} / {repos.length}
+          </span>
+          <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: selectedRepos.length > 0 ? "#f59e0b" : "#71717a", transition: "color 0.2s" }}>
+            {selectedRepos.length}&nbsp;/&nbsp;{repos.length}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
-          {repos.map((repo) => {
+        <div style={{ border: "1px solid #16161f", borderRadius: "8px", overflow: "hidden", maxHeight: "288px", overflowY: "auto" }}>
+          {repos.map((repo, i) => {
             const checked = selectedRepos.includes(repo.full_name);
             return (
               <label
                 key={repo.id}
-                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  checked
-                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
-                    : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
-                }`}
+                className={checked ? "repo-row-active" : "repo-row"}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "11px 14px",
+                  cursor: "pointer",
+                  background: checked ? "rgba(245,158,11,0.05)" : "transparent",
+                  borderBottom: i < repos.length - 1 ? "1px solid #16161f" : "none",
+                  borderLeft: `2px solid ${checked ? "#f59e0b" : "transparent"}`,
+                  transition: "all 0.15s",
+                }}
               >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleRepo(repo.full_name)}
-                  className="mt-0.5 accent-indigo-600"
-                />
-                <div className="min-w-0">
-                  <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                <input type="checkbox" checked={checked} onChange={() => toggleRepo(repo.full_name)} style={{ display: "none" }} />
+                <span
+                  style={{
+                    width: "14px", height: "14px", borderRadius: "3px", flexShrink: 0,
+                    border: checked ? "1.5px solid #f59e0b" : "1.5px solid #27272a",
+                    background: checked ? "#f59e0b" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {checked && (
+                    <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                      <path d="M1 3L3 5L7 1" stroke="#08080d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </span>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "var(--font-geist-mono)", fontSize: "12px", color: checked ? "#f4f4f5" : "#a1a1aa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", transition: "color 0.15s" }}>
                     {repo.name}
                   </div>
                   {repo.description && (
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+                    <div style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#71717a", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {repo.description}
                     </div>
                   )}
-                  {repo.private && (
-                    <span className="inline-block text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded mt-1">
-                      私有
-                    </span>
-                  )}
                 </div>
+
+                {repo.private && (
+                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "9px", color: "#a1a1aa", border: "1px solid #3f3f46", borderRadius: "3px", padding: "1px 5px", letterSpacing: "0.05em", textTransform: "uppercase", flexShrink: 0 }}>
+                    私有
+                  </span>
+                )}
               </label>
             );
           })}
         </div>
       </section>
 
-      {/* AI 提供方选择 */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+      {/* 分隔 */}
+      <div style={{ borderTop: "1px solid #16161f", marginBottom: "36px" }} />
+
+      {/* ── AI 总结方式 ── */}
+      <section style={{ marginBottom: "36px" }}>
+        <span style={{ display: "block", fontFamily: "var(--font-geist-mono)", fontSize: "10px", letterSpacing: "0.18em", textTransform: "uppercase", color: "#a1a1aa", marginBottom: "10px" }}>
           AI 总结方式
-        </h2>
-        <div className="flex flex-col sm:flex-row gap-2">
+        </span>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
           {aiOptions.map((opt) => {
             const active = provider === opt.value;
             return (
               <button
                 key={String(opt.value)}
                 onClick={() => setProvider(opt.value)}
-                className={`flex-1 text-left p-4 rounded-xl border transition-colors ${
-                  active
-                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
-                    : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
-                }`}
+                className={active ? "ai-btn-active" : "ai-btn"}
+                style={{
+                  padding: "14px 12px", borderRadius: "6px", cursor: "pointer", textAlign: "left",
+                  border: active ? "1px solid #f59e0b" : "1px solid #16161f",
+                  background: active ? "rgba(245,158,11,0.07)" : "transparent",
+                  transition: "all 0.15s", position: "relative",
+                }}
               >
-                <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                {opt.tag && (
+                  <span style={{ position: "absolute", top: "6px", right: "7px", fontFamily: "var(--font-geist-mono)", fontSize: "8px", color: "#f59e0b", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {opt.tag}
+                  </span>
+                )}
+                <div style={{ fontFamily: "var(--font-syne)", fontSize: "15px", fontWeight: 700, color: active ? "#f59e0b" : "#71717a", marginBottom: "4px", transition: "color 0.15s" }}>
                   {opt.label}
                 </div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                <div style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: active ? "#d97706" : "#71717a", transition: "color 0.15s" }}>
                   {opt.desc}
                 </div>
               </button>
@@ -148,20 +188,45 @@ export function DashboardClient({ repos, userLogin }: Props) {
         </div>
       </section>
 
+      {/* 错误 */}
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div style={{ marginBottom: "12px", fontFamily: "var(--font-geist-mono)", fontSize: "11px", color: "#f87171" }}>
+          ✗ {error}
+        </div>
       )}
 
+      {/* ── 生成按钮 ── */}
       <button
         onClick={handleGenerate}
-        disabled={loading || selectedRepos.length === 0}
-        className="w-full h-12 rounded-xl bg-indigo-600 text-white font-medium text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        disabled={!canGenerate}
+        className="gen-btn"
+        style={{
+          width: "100%", padding: "14px", borderRadius: "6px", border: "none",
+          background: canGenerate ? "#f59e0b" : "#16161f",
+          color: canGenerate ? "#08080d" : "#3f3f46",
+          fontFamily: "var(--font-syne)", fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em",
+          cursor: canGenerate ? "pointer" : "not-allowed",
+          transition: "all 0.2s",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+        }}
       >
-        {loading ? "正在获取提交记录…" : "生成本周周报"}
+        {loading ? (
+          <>
+            <span style={{ display: "inline-block", width: "12px", height: "12px", border: "1.5px solid #3f3f46", borderTopColor: "#f59e0b", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            正在获取提交记录
+          </>
+        ) : (
+          <>
+            生成本周周报
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </>
+        )}
       </button>
 
-      <p className="text-xs text-zinc-400 text-center">
-        将获取 {userLogin} 在所选仓库最近 7 天的提交记录
+      <p style={{ marginTop: "20px", fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#27272a", textAlign: "center", letterSpacing: "0.04em" }}>
+        获取 {userLogin} 在所选仓库最近 7 天的提交记录
       </p>
     </div>
   );

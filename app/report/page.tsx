@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRouter } from "next/navigation";
 import type { AIProvider } from "@/lib/ai";
 
@@ -28,10 +29,7 @@ export default function ReportPage() {
       const provider: AIProvider =
         providerRaw === "null" || !providerRaw ? null : (providerRaw as AIProvider);
 
-      const weekRange = {
-        start: since.slice(0, 10),
-        end: until.slice(0, 10),
-      };
+      const weekRange = { start: since.slice(0, 10), end: until.slice(0, 10) };
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -58,14 +56,12 @@ export default function ReportPage() {
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let accumulated = "";
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         accumulated += decoder.decode(value, { stream: true });
         setMarkdown(accumulated);
       }
-
       setLoading(false);
     }
 
@@ -87,64 +83,125 @@ export default function ReportPage() {
     URL.revokeObjectURL(url);
   }
 
+  const canDownload = !loading && !!markdown;
+
   return (
-    <div className="flex flex-col flex-1 bg-zinc-50 dark:bg-zinc-950 font-sans">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#08080d", fontFamily: "var(--font-geist-sans)" }}>
+      <style>{`
+        .report-back:hover { color: #f59e0b !important; }
+        .report-dl:not(:disabled):hover { background: #fbbf24 !important; }
+        .md-body h1, .md-body h2, .md-body h3 {
+          font-family: var(--font-syne);
+          color: #f4f4f5;
+          font-weight: 700;
+          margin-top: 1.8em;
+          margin-bottom: 0.5em;
+          line-height: 1.2;
+        }
+        .md-body h1:first-child, .md-body h2:first-child { margin-top: 0; }
+        .md-body h1 { font-size: 22px; }
+        .md-body h2 { font-size: 16px; border-bottom: 1px solid #16161f; padding-bottom: 8px; }
+        .md-body h3 { font-size: 13px; color: #a1a1aa; }
+        .md-body p { color: #a1a1aa; font-size: 13px; line-height: 1.85; margin-bottom: 1em; }
+        .md-body strong { color: #e4e4e7; font-weight: 600; }
+        .md-body ul, .md-body ol { color: #a1a1aa; font-size: 13px; line-height: 1.85; padding-left: 1.4em; margin-bottom: 1em; }
+        .md-body li { margin-bottom: 4px; }
+        .md-body code { font-family: var(--font-geist-mono); font-size: 11px; background: #16161f; color: #f59e0b; border-radius: 3px; padding: 1px 6px; }
+        .md-body pre { background: #0e0e16; border: 1px solid #1e1e2e; border-radius: 6px; padding: 16px; overflow-x: auto; margin-bottom: 1em; }
+        .md-body pre code { background: none; padding: 0; color: #a1a1aa; font-size: 12px; }
+        .md-body hr { border: none; border-top: 1px solid #16161f; margin: 2em 0; }
+        .md-body table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 1.5em; }
+        .md-body thead tr { border-bottom: 1px solid #27272a; }
+        .md-body th { font-family: var(--font-geist-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #52525b; font-weight: 500; padding: 8px 14px; text-align: left; white-space: nowrap; }
+        .md-body td { padding: 10px 14px; color: #a1a1aa; border-bottom: 1px solid #16161f; vertical-align: top; font-family: var(--font-geist-mono); font-size: 12px; word-break: break-word; }
+        .md-body tr:last-child td { border-bottom: none; }
+        .md-body tbody tr:hover td { background: rgba(255,255,255,0.018); }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+
+      {/* 背景点阵 */}
+      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", backgroundImage: "radial-gradient(circle, rgba(245,158,11,0.05) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+
+      {/* Header */}
+      <header style={{ position: "relative", zIndex: 10, borderBottom: "1px solid #16161f", background: "rgba(8,8,13,0.9)", backdropFilter: "blur(12px)" }}>
+        <div style={{ maxWidth: "820px", margin: "0 auto", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
             <button
               onClick={() => router.push("/dashboard")}
-              className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+              className="report-back"
+              style={{ fontFamily: "var(--font-geist-mono)", fontSize: "11px", color: "#52525b", background: "none", border: "none", cursor: "pointer", transition: "color 0.15s" }}
             >
               ← 返回
             </button>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📋</span>
-              <span className="font-semibold text-zinc-900 dark:text-zinc-100">本周周报</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#f59e0b", boxShadow: "0 0 6px #f59e0b88", display: "inline-block", flexShrink: 0 }} />
+              <span style={{ fontFamily: "var(--font-syne)", fontSize: "13px", fontWeight: 700, color: "#e4e4e7", letterSpacing: "0.08em" }}>
+                本周周报
+              </span>
             </div>
           </div>
+
           <button
             onClick={handleDownload}
-            disabled={loading || !markdown}
-            className="flex items-center gap-2 h-9 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            disabled={!canDownload}
+            className="report-dl"
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "7px 16px", borderRadius: "6px", border: "none",
+              background: canDownload ? "#f59e0b" : "#16161f",
+              color: canDownload ? "#08080d" : "#3f3f46",
+              fontFamily: "var(--font-syne)", fontWeight: 700, fontSize: "12px", letterSpacing: "0.05em",
+              cursor: canDownload ? "pointer" : "not-allowed", transition: "all 0.2s",
+            }}
           >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v7M3 6l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             下载 .md 文件
           </button>
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
+      {/* Main */}
+      <main style={{ position: "relative", zIndex: 10, flex: 1, maxWidth: "820px", margin: "0 auto", width: "100%", padding: "48px 24px" }}>
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30 p-6 text-sm text-red-600 dark:text-red-400 space-y-3">
-            <p>{error}</p>
+          <div style={{ border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.04)", borderRadius: "8px", padding: "20px 24px" }}>
+            <p style={{ fontFamily: "var(--font-geist-mono)", fontSize: "12px", color: "#f87171", marginBottom: "12px" }}>✗ {error}</p>
             <button
               onClick={() => router.push("/dashboard")}
-              className="text-indigo-600 dark:text-indigo-400 hover:underline"
+              style={{ fontFamily: "var(--font-geist-mono)", fontSize: "11px", color: "#f59e0b", background: "none", border: "none", cursor: "pointer" }}
             >
-              返回重试
+              ← 返回重试
             </button>
           </div>
         ) : (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-8">
-            {loading && !markdown && (
-              <div className="flex items-center gap-3 text-zinc-500 dark:text-zinc-400 text-sm py-8 justify-center">
-                <span className="animate-spin text-lg">⏳</span>
-                <span>正在生成周报，请稍候…</span>
-              </div>
-            )}
+          <div style={{ border: "1px solid #16161f", borderRadius: "10px", background: "#0b0b12", overflow: "hidden" }}>
+            <div style={{ height: "2px", background: "linear-gradient(90deg, #f59e0b 0%, transparent 60%)" }} />
 
-            {markdown && (
-              <div className="prose prose-zinc dark:prose-invert max-w-none prose-headings:font-semibold prose-table:text-sm">
-                <ReactMarkdown>{markdown}</ReactMarkdown>
-              </div>
-            )}
+            <div style={{ padding: "36px 40px" }}>
+              {loading && !markdown && (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", justifyContent: "center", padding: "60px 0" }}>
+                  <span style={{ display: "inline-block", width: "14px", height: "14px", border: "1.5px solid #27272a", borderTopColor: "#f59e0b", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "12px", color: "#52525b" }}>
+                    正在生成周报，请稍候…
+                  </span>
+                </div>
+              )}
 
-            {loading && markdown && (
-              <div className="flex items-center gap-2 text-xs text-zinc-400 mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <span className="animate-pulse">●</span>
-                <span>AI 正在生成中…</span>
-              </div>
-            )}
+              {markdown && (
+                <div className="md-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+                </div>
+              )}
+
+              {loading && markdown && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #16161f" }}>
+                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#f59e0b", animation: "blink 1.2s ease infinite" }}>●</span>
+                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#3f3f46" }}>AI 正在生成中…</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
