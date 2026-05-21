@@ -1,6 +1,6 @@
 import { auth, signOut } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getUserRepos } from "@/lib/github";
+import { getUserRepos, GitHubRepo } from "@/lib/github";
 import { DashboardClient } from "@/components/DashboardClient";
 
 interface SearchParams {
@@ -20,7 +20,7 @@ export default async function DashboardPage({
 
   const autoConfig = await searchParams;
 
-  let repos = [];
+  let repos: GitHubRepo[] = [];
   let fetchError = "";
 
   try {
