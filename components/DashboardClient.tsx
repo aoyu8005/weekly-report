@@ -10,9 +10,47 @@ interface Props {
   userLogin: string;
 }
 
+interface ModelOption {
+  id: string;
+  label: string;
+  desc: string;
+  tag?: string;
+}
+
+const PROVIDER_MODELS: Record<NonNullable<AIProvider>, ModelOption[]> = {
+  claude: [
+    { id: "claude-opus-4-7",           label: "Opus 4.7",   desc: "最强推理",     tag: "最强" },
+    { id: "claude-sonnet-4-6",          label: "Sonnet 4.6", desc: "均衡性能",     tag: "推荐" },
+    { id: "claude-haiku-4-5-20251001",  label: "Haiku 4.5",  desc: "快速经济" },
+  ],
+  openai: [
+    { id: "gpt-4o",      label: "GPT-4o",      desc: "旗舰多模态" },
+    { id: "gpt-4o-mini", label: "GPT-4o Mini", desc: "快速经济",   tag: "推荐" },
+    { id: "o3-mini",     label: "o3-mini",     desc: "深度推理" },
+  ],
+  glm: [
+    { id: "glm-4-flash",  label: "GLM-4 Flash",  desc: "免费极速",   tag: "免费" },
+    { id: "glm-4-air",    label: "GLM-4 Air",    desc: "高性价比",   tag: "推荐" },
+    { id: "glm-4-plus",   label: "GLM-4 Plus",   desc: "旗舰" },
+    { id: "glm-z1-flash", label: "Z1 Flash",     desc: "推理·免费",  tag: "推理" },
+  ],
+  gemini: [
+    { id: "gemini-2.0-flash",      label: "2.0 Flash",      desc: "快速均衡",   tag: "推荐" },
+    { id: "gemini-2.0-flash-lite", label: "2.0 Flash Lite", desc: "极速" },
+    { id: "gemini-1.5-pro",        label: "1.5 Pro",        desc: "长文本旗舰" },
+    { id: "gemini-1.5-flash",      label: "1.5 Flash",      desc: "高性价比" },
+  ],
+};
+
+function defaultModel(provider: NonNullable<AIProvider>): string {
+  const recommended = PROVIDER_MODELS[provider].find((m) => m.tag === "推荐");
+  return (recommended ?? PROVIDER_MODELS[provider][0]).id;
+}
+
 export function DashboardClient({ repos, userLogin }: Props) {
   const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
   const [provider, setProvider] = useState<AIProvider>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -21,6 +59,11 @@ export function DashboardClient({ repos, userLogin }: Props) {
     setSelectedRepos((prev) =>
       prev.includes(fullName) ? prev.filter((r) => r !== fullName) : [...prev, fullName]
     );
+  }
+
+  function handleProviderChange(value: AIProvider) {
+    setProvider(value);
+    setSelectedModel(value ? defaultModel(value) : null);
   }
 
   async function handleGenerate() {
@@ -47,6 +90,7 @@ export function DashboardClient({ repos, userLogin }: Props) {
 
       sessionStorage.setItem("commits", JSON.stringify(commits));
       sessionStorage.setItem("provider", provider ?? "null");
+      sessionStorage.setItem("model", selectedModel ?? "null");
       sessionStorage.setItem("since", since);
       sessionStorage.setItem("until", until);
       sessionStorage.setItem("repos", JSON.stringify(selectedRepos));
@@ -59,11 +103,14 @@ export function DashboardClient({ repos, userLogin }: Props) {
   }
 
   const aiOptions: { value: AIProvider; label: string; desc: string; tag?: string }[] = [
-    { value: "claude", label: "Claude", desc: "Anthropic", tag: "推荐" },
-    { value: "openai", label: "OpenAI", desc: "GPT-4o Mini" },
-    { value: null, label: "无 AI", desc: "仅导出原始记录" },
+    { value: "claude",  label: "Claude",  desc: "Anthropic",     tag: "推荐" },
+    { value: "openai",  label: "OpenAI",  desc: "GPT 系列" },
+    { value: "glm",     label: "GLM",     desc: "智谱" },
+    { value: "gemini",  label: "Gemini",  desc: "Google" },
+    { value: null,      label: "无 AI",   desc: "仅原始记录" },
   ];
 
+  const modelOptions = provider ? PROVIDER_MODELS[provider] : [];
   const canGenerate = !loading && selectedRepos.length > 0;
 
   return (
@@ -74,8 +121,9 @@ export function DashboardClient({ repos, userLogin }: Props) {
         .repo-row-active:hover { background: rgba(245,158,11,0.07) !important; }
         .ai-btn:hover { border-color: #27272a !important; }
         .ai-btn-active:hover { border-color: #f59e0b !important; }
+        .model-btn:hover { border-color: #27272a !important; }
+        .model-btn-active:hover { border-color: #f59e0b !important; }
         .gen-btn:not(:disabled):hover { background: #fbbf24 !important; }
-        .sign-out-btn:hover { color: #f59e0b !important; }
       `}</style>
 
       {/* ── 选择仓库 ── */}
@@ -97,10 +145,7 @@ export function DashboardClient({ repos, userLogin }: Props) {
                 key={repo.id}
                 className={checked ? "repo-row-active" : "repo-row"}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "11px 14px",
+                  display: "flex", alignItems: "center", gap: "12px", padding: "11px 14px",
                   cursor: "pointer",
                   background: checked ? "rgba(245,158,11,0.05)" : "transparent",
                   borderBottom: i < repos.length - 1 ? "1px solid #16161f" : "none",
@@ -109,15 +154,13 @@ export function DashboardClient({ repos, userLogin }: Props) {
                 }}
               >
                 <input type="checkbox" checked={checked} onChange={() => toggleRepo(repo.full_name)} style={{ display: "none" }} />
-                <span
-                  style={{
-                    width: "14px", height: "14px", borderRadius: "3px", flexShrink: 0,
-                    border: checked ? "1.5px solid #f59e0b" : "1.5px solid #27272a",
-                    background: checked ? "#f59e0b" : "transparent",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "all 0.15s",
-                  }}
-                >
+                <span style={{
+                  width: "14px", height: "14px", borderRadius: "3px", flexShrink: 0,
+                  border: checked ? "1.5px solid #f59e0b" : "1.5px solid #27272a",
+                  background: checked ? "#f59e0b" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s",
+                }}>
                   {checked && (
                     <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
                       <path d="M1 3L3 5L7 1" stroke="#08080d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -150,19 +193,19 @@ export function DashboardClient({ repos, userLogin }: Props) {
       {/* 分隔 */}
       <div style={{ borderTop: "1px solid #16161f", marginBottom: "36px" }} />
 
-      {/* ── AI 总结方式 ── */}
-      <section style={{ marginBottom: "36px" }}>
+      {/* ── AI 提供商 ── */}
+      <section style={{ marginBottom: modelOptions.length > 0 ? "16px" : "36px" }}>
         <span style={{ display: "block", fontFamily: "var(--font-geist-mono)", fontSize: "10px", letterSpacing: "0.18em", textTransform: "uppercase", color: "#a1a1aa", marginBottom: "10px" }}>
           AI 总结方式
         </span>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "8px" }}>
           {aiOptions.map((opt) => {
             const active = provider === opt.value;
             return (
               <button
                 key={String(opt.value)}
-                onClick={() => setProvider(opt.value)}
+                onClick={() => handleProviderChange(opt.value)}
                 className={active ? "ai-btn-active" : "ai-btn"}
                 style={{
                   padding: "14px 12px", borderRadius: "6px", cursor: "pointer", textAlign: "left",
@@ -187,6 +230,45 @@ export function DashboardClient({ repos, userLogin }: Props) {
           })}
         </div>
       </section>
+
+      {/* ── 模型选择（仅当选了 AI 提供商时显示）── */}
+      {modelOptions.length > 0 && (
+        <section style={{ marginBottom: "36px" }}>
+          <span style={{ display: "block", fontFamily: "var(--font-geist-mono)", fontSize: "10px", letterSpacing: "0.14em", textTransform: "uppercase", color: "#52525b", marginBottom: "8px" }}>
+            选择模型
+          </span>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {modelOptions.map((m) => {
+              const active = selectedModel === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedModel(m.id)}
+                  className={active ? "model-btn-active" : "model-btn"}
+                  style={{
+                    padding: "8px 14px", borderRadius: "5px", cursor: "pointer",
+                    border: active ? "1px solid #f59e0b" : "1px solid #1e1e2e",
+                    background: active ? "rgba(245,158,11,0.07)" : "transparent",
+                    transition: "all 0.15s", position: "relative", display: "flex", flexDirection: "column", gap: "2px",
+                  }}
+                >
+                  {m.tag && (
+                    <span style={{ position: "absolute", top: "4px", right: "6px", fontFamily: "var(--font-geist-mono)", fontSize: "7px", color: active ? "#f59e0b" : "#52525b", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                      {m.tag}
+                    </span>
+                  )}
+                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "12px", fontWeight: 600, color: active ? "#f59e0b" : "#a1a1aa", transition: "color 0.15s" }}>
+                    {m.label}
+                  </span>
+                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "9px", color: active ? "#d97706" : "#3f3f46", transition: "color 0.15s" }}>
+                    {m.desc}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 错误 */}
       {error && (
