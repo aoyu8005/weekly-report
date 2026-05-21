@@ -34,8 +34,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { provider, commits, repos, weekRange } = body as {
+    const { provider, model, commits, repos, weekRange } = body as {
       provider: AIProvider;
+      model?: string;
       commits: CommitItem[];
       repos: string[];
       weekRange: { start: string; end: string };
@@ -52,8 +53,14 @@ export async function POST(request: Request) {
     if (provider === "openai" && !process.env.OPENAI_API_KEY) {
       return Response.json({ error: "OPENAI_API_KEY 未配置" }, { status: 400 });
     }
+    if (provider === "glm" && !process.env.GLM_API_KEY) {
+      return Response.json({ error: "GLM_API_KEY 未配置" }, { status: 400 });
+    }
+    if (provider === "gemini" && !process.env.GEMINI_API_KEY) {
+      return Response.json({ error: "GEMINI_API_KEY 未配置" }, { status: 400 });
+    }
 
-    const stream = await generateReport(provider, { repos, commits, weekRange });
+    const stream = await generateReport(provider, { repos, commits, weekRange }, model);
 
     if (!stream) {
       const markdown = formatCommitsAsMarkdown(commits, weekRange, repos);

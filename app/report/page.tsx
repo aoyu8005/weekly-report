@@ -1,46 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useRouter } from "next/navigation";
 import type { AIProvider } from "@/lib/ai";
 
+type Phase = "loading" | "streaming" | "done" | "error";
+
 export default function ReportPage() {
+  const [phase, setPhase] = useState<Phase>("loading");
   const [markdown, setMarkdown] = useState("");
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // 直接操作 pre DOM，绕过 React state，消除流式输出闪烁
+  const preRef = useRef<HTMLPreElement>(null);
+  const bufferRef = useRef("");
 
   useEffect(() => {
     async function generate() {
       const commits = JSON.parse(sessionStorage.getItem("commits") ?? "[]");
       const providerRaw = sessionStorage.getItem("provider");
+      const modelRaw = sessionStorage.getItem("model");
       const since = sessionStorage.getItem("since") ?? "";
       const until = sessionStorage.getItem("until") ?? "";
       const repos = JSON.parse(sessionStorage.getItem("repos") ?? "[]");
 
       if (!since || repos.length === 0) {
         setError("未找到周报数据，请返回重新生成。");
-        setLoading(false);
+        setPhase("error");
         return;
       }
 
       const provider: AIProvider =
         providerRaw === "null" || !providerRaw ? null : (providerRaw as AIProvider);
+      const model = modelRaw === "null" || !modelRaw ? undefined : modelRaw;
 
       const weekRange = { start: since.slice(0, 10), end: until.slice(0, 10) };
 
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, commits, repos, weekRange }),
+        body: JSON.stringify({ provider, model, commits, repos, weekRange }),
       });
 
       if (!response.ok) {
         const data = await response.json();
         setError(data.error ?? "生成失败");
-        setLoading(false);
+        setPhase("error");
         return;
       }
 
@@ -49,25 +57,38 @@ export default function ReportPage() {
       if (contentType.includes("application/json")) {
         const data = await response.json();
         setMarkdown(data.markdown);
-        setLoading(false);
+        setPhase("done");
         return;
       }
 
+      // 流式输出：先切换到 streaming 阶段（渲染 pre 元素），再逐 chunk 直接写 DOM
+      setPhase("streaming");
+
+      // 等下一个微任务确保 pre 已挂载
+      await Promise.resolve();
+
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
-      let accumulated = "";
+      bufferRef.current = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-        setMarkdown(accumulated);
+        bufferRef.current += decoder.decode(value, { stream: true });
+        // 直接写 textContent，完全不经过 React，无 diff、无重排
+        if (preRef.current) {
+          preRef.current.textContent = bufferRef.current;
+        }
       }
-      setLoading(false);
+
+      // 流结束：触发一次 React 渲染，切换到格式化视图
+      setMarkdown(bufferRef.current);
+      setPhase("done");
     }
 
     generate().catch((e) => {
       setError(e instanceof Error ? e.message : "未知错误");
-      setLoading(false);
+      setPhase("error");
     });
   }, []);
 
@@ -83,7 +104,7 @@ export default function ReportPage() {
     URL.revokeObjectURL(url);
   }
 
-  const canDownload = !loading && !!markdown;
+  const canDownload = phase === "done" && !!markdown;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#08080d", fontFamily: "var(--font-geist-sans)" }}>
@@ -165,7 +186,7 @@ export default function ReportPage() {
 
       {/* Main */}
       <main style={{ position: "relative", zIndex: 10, flex: 1, maxWidth: "820px", margin: "0 auto", width: "100%", padding: "48px 24px" }}>
-        {error ? (
+        {phase === "error" ? (
           <div style={{ border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.04)", borderRadius: "8px", padding: "20px 24px" }}>
             <p style={{ fontFamily: "var(--font-geist-mono)", fontSize: "12px", color: "#f87171", marginBottom: "12px" }}>✗ {error}</p>
             <button
@@ -180,7 +201,8 @@ export default function ReportPage() {
             <div style={{ height: "2px", background: "linear-gradient(90deg, #f59e0b 0%, transparent 60%)" }} />
 
             <div style={{ padding: "36px 40px" }}>
-              {loading && !markdown && (
+              {/* 等待第一个 chunk */}
+              {phase === "loading" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", justifyContent: "center", padding: "60px 0" }}>
                   <span style={{ display: "inline-block", width: "14px", height: "14px", border: "1.5px solid #27272a", borderTopColor: "#f59e0b", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                   <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "12px", color: "#52525b" }}>
@@ -189,16 +211,27 @@ export default function ReportPage() {
                 </div>
               )}
 
-              {markdown && (
-                <div className="md-body">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
-                </div>
+              {/* 流式输出中：pre 由 ref 直接驱动，零 React 重渲染 */}
+              {phase === "streaming" && (
+                <>
+                  <pre
+                    ref={preRef}
+                    style={{
+                      fontFamily: "var(--font-geist-mono)", fontSize: "12px", color: "#a1a1aa",
+                      lineHeight: 1.85, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0,
+                    }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #16161f" }}>
+                    <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#f59e0b", animation: "blink 1.2s ease infinite" }}>●</span>
+                    <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#3f3f46" }}>AI 正在生成中…</span>
+                  </div>
+                </>
               )}
 
-              {loading && markdown && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #16161f" }}>
-                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#f59e0b", animation: "blink 1.2s ease infinite" }}>●</span>
-                  <span style={{ fontFamily: "var(--font-geist-mono)", fontSize: "10px", color: "#3f3f46" }}>AI 正在生成中…</span>
+              {/* 完成：一次性渲染格式化 Markdown */}
+              {phase === "done" && markdown && (
+                <div className="md-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
                 </div>
               )}
             </div>
