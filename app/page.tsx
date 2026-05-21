@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 export default async function Home() {
   const session = await auth().catch(() => null);
-  if (session) redirect("/dashboard");
+  if (session?.accessToken) redirect("/dashboard");
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 dark:bg-zinc-950 font-sans">
