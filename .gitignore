@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code local settings (personal overrides, not for team)
+.claude/settings.local.json
+.claude/memory/

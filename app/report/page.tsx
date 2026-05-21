@@ -104,6 +104,18 @@ export default function ReportPage() {
     URL.revokeObjectURL(url);
   }
 
+  // 自动保存：生成完成后保存到本地 reports/ 目录
+  useEffect(() => {
+    if (phase !== "done" || !markdown) return;
+    if (sessionStorage.getItem("autosave") !== "1") return;
+    sessionStorage.removeItem("autosave");
+    fetch("/api/save-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markdown }),
+    }).catch(() => {});
+  }, [phase, markdown]);
+
   const canDownload = phase === "done" && !!markdown;
 
   return (
