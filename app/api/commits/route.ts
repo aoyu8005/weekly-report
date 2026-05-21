@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getRepoCommits } from "@/lib/github";
+import { getRepoCommits, GitHubCommit } from "@/lib/github";
 
 export async function POST(request: Request) {
   try {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     const commits = results.flatMap((result, i) => {
       if (result.status === "rejected") return [];
-      return result.value.map((commit) => ({
+      return result.value.map((commit: GitHubCommit) => ({
         repo: repoFullNames[i],
         sha: commit.sha.slice(0, 7),
         message: commit.commit.message.split("\n")[0],
