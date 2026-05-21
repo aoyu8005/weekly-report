@@ -3,9 +3,22 @@ import { redirect } from "next/navigation";
 import { getUserRepos } from "@/lib/github";
 import { DashboardClient } from "@/components/DashboardClient";
 
-export default async function DashboardPage() {
+interface SearchParams {
+  autoRepo?: string;
+  autoProvider?: string;
+  autoModel?: string;
+  autogenerate?: string;
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const session = await auth();
   if (!session?.accessToken) redirect("/");
+
+  const autoConfig = await searchParams;
 
   let repos = [];
   let fetchError = "";
@@ -161,7 +174,7 @@ export default async function DashboardPage() {
             未找到任何仓库
           </div>
         ) : (
-          <DashboardClient repos={repos} userLogin={userLogin} />
+          <DashboardClient repos={repos} userLogin={userLogin} autoConfig={autoConfig} />
         )}
       </main>
     </div>
