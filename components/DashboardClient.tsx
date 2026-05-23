@@ -43,10 +43,12 @@ const PROVIDER_MODELS: Record<NonNullable<AIProvider>, ModelOption[]> = {
     { id: "glm-z1-flash", label: "Z1 Flash",     desc: "推理·免费",  tag: "推理" },
   ],
   gemini: [
-    { id: "gemini-2.0-flash",      label: "2.0 Flash",      desc: "快速均衡",   tag: "推荐" },
+    { id: "gemini-2.5-flash",      label: "2.5 Flash",      desc: "快速均衡",   tag: "推荐" },
+    { id: "gemini-2.5-pro",        label: "2.5 Pro",        desc: "最强旗舰" },
+    { id: "gemini-2.5-flash-lite", label: "2.5 Flash Lite", desc: "轻量快速" },
+    { id: "gemini-2.0-flash",      label: "2.0 Flash",      desc: "稳定经典" },
     { id: "gemini-2.0-flash-lite", label: "2.0 Flash Lite", desc: "极速" },
-    { id: "gemini-1.5-pro",        label: "1.5 Pro",        desc: "长文本旗舰" },
-    { id: "gemini-1.5-flash",      label: "1.5 Flash",      desc: "高性价比" },
+    { id: "gemini-3.5-flash",      label: "3.5 Flash",      desc: "最新旗舰" },
   ],
 };
 
